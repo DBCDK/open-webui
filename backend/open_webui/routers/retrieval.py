@@ -59,6 +59,7 @@ from open_webui.env import (
     SENTENCE_TRANSFORMERS_CROSS_ENCODER_SIGMOID_ACTIVATION_FUNCTION,
     SENTENCE_TRANSFORMERS_MODEL_KWARGS,
     USE_SLIM,
+    USER_AGENT,
 )
 from open_webui.events import EVENTS, publish_event
 from open_webui.internal.db import get_async_db, get_async_session
@@ -2251,9 +2252,25 @@ async def _fetch_url(url: str, max_size_mb: int | str | None) -> dict:
         except (TypeError, ValueError):
             max_bytes = None
 
+    # Matches SafeWebBaseLoader's default headers (retrieval/web/utils.py): the
+    # default python-requests/aiohttp UA with no headers is aggressively blocked
+    # by Cloudflare, Wikipedia, WAFs fronting shared hosts (e.g. Simply.com), etc.
+    headers = {
+        'User-Agent': USER_AGENT or 'DefaultLangchainUserAgent',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Referer': 'https://www.google.com/',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+    }
+
     async with get_ssrf_safe_session() as session:
         async with session.get(
-            url, ssl=AIOHTTP_CLIENT_SESSION_SSL, allow_redirects=AIOHTTP_CLIENT_ALLOW_REDIRECTS
+            url,
+            ssl=AIOHTTP_CLIENT_SESSION_SSL,
+            allow_redirects=AIOHTTP_CLIENT_ALLOW_REDIRECTS,
+            headers=headers,
         ) as response:
             response.raise_for_status()
 
